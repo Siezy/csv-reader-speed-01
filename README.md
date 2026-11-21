@@ -11,15 +11,18 @@ unquoted, CRLF and lone CRs inside quotes read as LF, rows padded or cut to the 
 record's width) — and `main.ts` is the harness driver that answers every case in
 `/input/cases.json` into `/output/answers.json`.
 
-It is fast because it never walks the text character by character in JavaScript: the
-positions of the next comma, LF, CR and quote are tracked as monotonically advancing
-`indexOf` cursors (each cursor's total scanning is linear over the parse; they are rebuilt
-only on the unterminated-quote rewind), fields are cut out with `slice()`, and only fields
-that actually contain stray CRs, doubled quotes or CRs inside quotes are assembled from
-parts. On the kit's practice set (6 cases, ~10.2M characters of CSV) it runs roughly
-7x faster than the csv-reader baseline in local medians, with answers byte-identical to
-the reference on every practice case and on extensive randomized differential fuzzing
-against csv-reader itself.
+It is fast because its field readers scan with tight `charCodeAt` loops straight to the
+next special character (comma / LF / CR outside quotes; quote / LF / CR inside), fields
+are cut out with `slice()`, and only fields that actually contain stray CRs, doubled
+quotes or CRs inside quotes are assembled from parts — the common field costs one scan
+and one slice, with no per-field result allocation. The scanning core was proposed by
+Hermes, the trio's second implementer, and adopted after it beat the previous
+`indexOf`-cursor design in A/B benchmarks (isolated-process medians on the review
+machine, ~6–7%; a tie by CPU time on a contended shared VM), with identical output on
+every test. On the kit's practice set (6 cases, ~10.2M characters of CSV) it runs
+roughly 7–9x faster than the csv-reader baseline in local medians, with answers
+byte-identical to the reference on every practice case and on extensive randomized
+differential fuzzing against csv-reader itself.
 
 ## Run it
 
